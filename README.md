@@ -41,3 +41,8 @@ Program zatim prikazuje telemetriju najbržeg kruga izabranog vozača.
 Prvo učitavanje podataka može potrajati jer FastF1 preuzima podatke sa interneta.
 
 Podaci se čuvaju u `cache` folderu. Taj folder se ne objavljuje na GitHub jer može biti veliki i može se ponovo napraviti pri pokretanju programa.
+
+<img width="1899" height="921" alt="Screenshot 2026-08-17 123141" src="https://github.com/user-attachments/assets/cca09485-82dc-4054-bf8e-93e7ace269b4" />
+<img width="1475" height="731" alt="Screenshot 2026-08-17 123126" src="https://github.com/user-attachments/assets/52f0a222-7866-4972-bd92-c0d9aacf2295" />
+<img width="1437" height="730" alt="Screenshot 2026-08-17 123106" src="https://github.com/user-attachments/assets/9ef5f933-1aed-4f62-a06b-f895a4ac357f" />
+<img width="1446" height="709" alt="Screenshot 2026-08-17 114829" src="https://github.com/user-attachments/assets/88e4bb28-de0f-4579-943a-5434bdc1bb42" />
