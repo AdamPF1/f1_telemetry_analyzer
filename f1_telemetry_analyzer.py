@@ -6,6 +6,19 @@ import numpy as np
 from matplotlib.collections import LineCollection
 
 CACHE_FOLDER = "cache"
+OUTPUT_FOLDER = "grafikoni"
+
+
+def sacuvajIliPrikazi(nazivFajla):
+    """Pita korisnika da li želi da sačuva trenutni grafikon kao PNG pre nego što ga prikaže."""
+    izbor = input("Sačuvaj grafikon kao PNG? da/ne: ").lower()
+    if izbor == "da":
+        if not os.path.exists(OUTPUT_FOLDER):
+            os.makedirs(OUTPUT_FOLDER)
+        putanja = os.path.join(OUTPUT_FOLDER, nazivFajla)
+        plt.savefig(putanja, dpi=150, bbox_inches="tight")
+        print(f"Grafikon sačuvan: {putanja}")
+    plt.show()
 
 
 def ukljuciCache():
@@ -124,6 +137,7 @@ def izaberiVozaca(sesija):
 
 
 def pronadjiNajbrziKrug(sesija, vozac):
+    """Pronalazi najbrži krug izabranog vozača u datoj sesiji. Vraća None ako podaci nisu dostupni."""
     krugoviVozaca = sesija.laps.pick_drivers(vozac)
     if krugoviVozaca.empty:
         print("Nema dostupnih krugova za ovog vozača.")
@@ -161,7 +175,7 @@ def nacrtajBrzinu(telemetrija, vozac):
     plt.xlabel("Distanca kroz krug u metrima")
     plt.ylabel("Brzina u km/h")
     plt.grid(True)
-    plt.show()
+    sacuvajIliPrikazi(f"brzina_{vozac}.png")
 
 
 def nacrtajGasIKocenje(telemetrija, vozac):
@@ -185,7 +199,7 @@ def nacrtajGasIKocenje(telemetrija, vozac):
     plt.ylabel("Procenat")
     plt.legend()
     plt.grid(True)
-    plt.show()
+    sacuvajIliPrikazi(f"gas_kocenje_{vozac}.png")
 
 
 def nacrtajBrzinuIObrtaje(telemetrija, vozac):
@@ -211,7 +225,7 @@ def nacrtajBrzinuIObrtaje(telemetrija, vozac):
     drugaOsa.tick_params(axis="y", labelcolor="blue")
     plt.title(f"Brzina i obrtaji kroz najbrži krug - {vozac}")
     figura.tight_layout()
-    plt.show()
+    sacuvajIliPrikazi(f"brzina_obrtaji_{vozac}.png")
 
 
 def nacrtajMapuStazePoBrzini(telemetrija, vozac):
@@ -232,7 +246,7 @@ def nacrtajMapuStazePoBrzini(telemetrija, vozac):
     osa.axis("off")
     colorbar = figura.colorbar(linije, ax=osa)
     colorbar.set_label("Brzina u km/h")
-    plt.show()
+    sacuvajIliPrikazi(f"mapa_staze_{vozac}.png")
 
 
 def prikaziStatistikuTelemetrije(telemetrija, vozac):
@@ -251,6 +265,7 @@ def prikaziStatistikuTelemetrije(telemetrija, vozac):
 
 
 def analizirajVozaca(sesija, vozac):
+    """Puna analiza jednog vozača: statistika, brzina, gas/kočenje, obrtaji i mapa staze. Vraća True ako je uspešno."""
     najbrziKrug = pronadjiNajbrziKrug(sesija, vozac)
     if najbrziKrug is None:
         return False
@@ -272,6 +287,51 @@ def analizirajVozaca(sesija, vozac):
     nacrtajBrzinuIObrtaje(telemetrija, vozac)
     nacrtajMapuStazePoBrzini(telemetrija, vozac)
     return True
+
+
+def izaberiDrugogVozacaZaPoredjenje(sesija, prviVozac):
+    dostupniVozaci = sorted(sesija.laps["Driver"].dropna().unique())
+    while True:
+        vozac = input(f"\nUnesi skraćenicu DRUGOG vozača za poređenje sa {prviVozac}: ").upper()
+        if vozac == prviVozac:
+            print("Izaberi drugačijeg vozača od prvog.")
+        elif vozac in dostupniVozaci:
+            return vozac
+        else:
+            print("Vozač nije pronađen u ovoj sesiji. Pokušaj ponovo.")
+
+
+def uporediBrzinuDvaVozaca(sesija, vozac1, vozac2):
+    """Crta overlay grafikon brzine dva vozača na njihovim najbržim krugovima u sesiji."""
+    krug1 = sesija.laps.pick_drivers(vozac1).pick_fastest()
+    krug2 = sesija.laps.pick_drivers(vozac2).pick_fastest()
+    if krug1 is None or krug2 is None:
+        print("Nije moguće uporediti vozače - nedostaju podaci za jednog od njih.")
+        return
+    telemetrija1 = krug1.get_telemetry()
+    telemetrija2 = krug2.get_telemetry()
+    plt.figure(figsize=(12, 6))
+    plt.plot(telemetrija1["Distance"], telemetrija1["Speed"], color="red", linewidth=2, label=vozac1)
+    plt.plot(telemetrija2["Distance"], telemetrija2["Speed"], color="blue", linewidth=2, label=vozac2)
+    razlikaVremena = (krug2["LapTime"] - krug1["LapTime"]).total_seconds()
+    brziVozac = vozac1 if razlikaVremena > 0 else vozac2
+    plt.title(f"Poređenje brzine: {vozac1} vs {vozac2} (brži: {brziVozac})")
+    plt.xlabel("Distanca kroz krug u metrima")
+    plt.ylabel("Brzina u km/h")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+
+def korisnikZeliPoredjenje():
+    while True:
+        izbor = input("\nDa li želiš da uporediš ovog vozača sa drugim? da/ne: ").lower()
+        if izbor == "da":
+            return True
+        elif izbor == "ne":
+            return False
+        else:
+            print("Unesi 'da' ili 'ne'.")
 
 
 def korisnikZeliDrugogVozaca():
@@ -302,10 +362,14 @@ def main():
         vozac = izaberiVozaca(sesija)
         analizaUspesna = analizirajVozaca(sesija, vozac)
         if analizaUspesna:
+            if korisnikZeliPoredjenje():
+                drugiVozac = izaberiDrugogVozacaZaPoredjenje(sesija, vozac)
+                uporediBrzinuDvaVozaca(sesija, vozac, drugiVozac)
             break
         if not korisnikZeliDrugogVozaca():
             print("Analiza je prekinuta.")
             break
+
 
 if __name__ == "__main__":
     main()
