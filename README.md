@@ -43,10 +43,10 @@ Prvo učitavanje podataka može potrajati jer FastF1 preuzima podatke sa interne
 Podaci se čuvaju u `cache` folderu. Taj folder se ne objavljuje na GitHub jer može biti veliki i može se ponovo napraviti pri pokretanju programa.
 
 ## Planirano dalje
- Poređenje vremena po sektorima (ne samo ukupnog kruga)
- Web interfejs (Streamlit) umesto komandne linije
- Analiza strategije guma tokom cele trke
- Poređenje više od dva vozača istovremeno
+ Poređenje vremena po sektorima (ne samo ukupnog kruga),
+ Web interfejs (Streamlit) umesto komandne linije,
+ Analiza strategije guma tokom cele trke,
+ Poređenje više od dva vozača istovremeno.
 
 <img width="1899" height="921" alt="Screenshot 2026-08-17 123141" src="https://github.com/user-attachments/assets/cca09485-82dc-4054-bf8e-93e7ace269b4" />
 <img width="1475" height="731" alt="Screenshot 2026-08-17 123126" src="https://github.com/user-attachments/assets/52f0a222-7866-4972-bd92-c0d9aacf2295" />
