@@ -1,375 +1,394 @@
+from __future__ import annotations
+
 import os
+from dataclasses import dataclass
+from typing import Any, Optional
 
 import fastf1
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.collections import LineCollection
 
-CACHE_FOLDER = "cache"
-OUTPUT_FOLDER = "grafikoni"
+
+@dataclass(frozen=True)
+class AppConfig:
+    """Putanje i podrazumevane vrednosti aplikacije."""
+
+    cache_folder: str = "cache"
+    output_folder: str = "grafikoni"
+    minimum_season: int = 2018
 
 
-def sacuvajIliPrikazi(nazivFajla):
-    """Pita korisnika da li želi da sačuva trenutni grafikon kao PNG pre nego što ga prikaže."""
-    izbor = input("Sačuvaj grafikon kao PNG? da/ne: ").lower()
-    if izbor == "da":
-        if not os.path.exists(OUTPUT_FOLDER):
-            os.makedirs(OUTPUT_FOLDER)
-        putanja = os.path.join(OUTPUT_FOLDER, nazivFajla)
-        plt.savefig(putanja, dpi=150, bbox_inches="tight")
-        print(f"Grafikon sačuvan: {putanja}")
-    plt.show()
+class F1DataService:
+    """Jedino mesto koje komunicira sa FastF1 bibliotekom."""
+
+    def __init__(self, config: AppConfig) -> None:
+        self.config = config
+
+    def enable_cache(self) -> None:
+        os.makedirs(self.config.cache_folder, exist_ok=True)
+        fastf1.Cache.enable_cache(self.config.cache_folder)
+
+    def get_schedule(self, season: int) -> Any:
+        return fastf1.get_event_schedule(season)
+
+    def get_session(self, season: int, round_number: int, session_type: str) -> Any:
+        session = fastf1.get_session(season, round_number, session_type)
+        session.load()
+        return session
 
 
-def ukljuciCache():
-    if not os.path.exists(CACHE_FOLDER):
-        os.makedirs(CACHE_FOLDER)
-    fastf1.Cache.enable_cache(CACHE_FOLDER)
+class ChartRenderer:
+    """Kreira, stilizuje i čuva grafikone telemetrije."""
+
+    BACKGROUND = "#111827"
+    GRID = "#374151"
+    TEXT = "#F9FAFB"
+    RED = "#EF4444"
+    BLUE = "#38BDF8"
+    GREEN = "#22C55E"
+    ORANGE = "#F59E0B"
+
+    def __init__(self, config: AppConfig, ui: "ConsoleUI") -> None:
+        self.config = config
+        self.ui = ui
+
+    def _style(self, figure: Any, axes: Any) -> None:
+        figure.patch.set_facecolor(self.BACKGROUND)
+        axes.set_facecolor(self.BACKGROUND)
+        axes.tick_params(colors=self.TEXT)
+        axes.xaxis.label.set_color(self.TEXT)
+        axes.yaxis.label.set_color(self.TEXT)
+        axes.title.set_color(self.TEXT)
+        for spine in axes.spines.values():
+            spine.set_color(self.GRID)
+        axes.grid(True, color=self.GRID, alpha=0.6)
+
+    def _display(self, figure: Any, filename: str) -> None:
+        figure.tight_layout()
+        if self.ui.ask_yes_no("Sačuvati grafikon kao PNG?"):
+            os.makedirs(self.config.output_folder, exist_ok=True)
+            path = os.path.join(self.config.output_folder, filename)
+            figure.savefig(path, dpi=150, bbox_inches="tight", facecolor=figure.get_facecolor())
+            self.ui.success(f"Grafikon je sačuvan: {path}")
+        plt.show()
+        plt.close(figure)
+
+    def speed(self, telemetry: Any, driver: str) -> None:
+        figure, axes = plt.subplots(figsize=(12, 6))
+        axes.plot(telemetry["Distance"], telemetry["Speed"], color=self.RED, linewidth=2)
+        axes.set_title(f"Brzina kroz najbrži krug — {driver}", fontweight="bold")
+        axes.set_xlabel("Distanca kroz krug (m)")
+        axes.set_ylabel("Brzina (km/h)")
+        self._style(figure, axes)
+        self._display(figure, f"brzina_{driver}.png")
+
+    def throttle_and_brake(self, telemetry: Any, driver: str) -> None:
+        figure, axes = plt.subplots(figsize=(12, 6))
+        axes.plot(
+            telemetry["Distance"], telemetry["Throttle"],
+            label="Gas", color=self.GREEN, linewidth=2
+        )
+        axes.plot(
+            telemetry["Distance"], telemetry["Brake"] * 100,
+            label="Kočenje", color=self.RED, linewidth=2
+        )
+        axes.set_title(f"Gas i kočenje — {driver}", fontweight="bold")
+        axes.set_xlabel("Distanca kroz krug (m)")
+        axes.set_ylabel("Procenat")
+        axes.legend(facecolor=self.BACKGROUND, labelcolor=self.TEXT)
+        self._style(figure, axes)
+        self._display(figure, f"gas_kocenje_{driver}.png")
+
+    def speed_and_rpm(self, telemetry: Any, driver: str) -> None:
+        figure, speed_axis = plt.subplots(figsize=(12, 6))
+        rpm_axis = speed_axis.twinx()
+        speed_axis.plot(
+            telemetry["Distance"], telemetry["Speed"],
+            color=self.RED, label="Brzina", linewidth=2
+        )
+        rpm_axis.plot(
+            telemetry["Distance"], telemetry["RPM"],
+            color=self.BLUE, label="Obrtaji", linewidth=2
+        )
+        speed_axis.set_title(f"Brzina i obrtaji — {driver}", fontweight="bold")
+        speed_axis.set_xlabel("Distanca kroz krug (m)")
+        speed_axis.set_ylabel("Brzina (km/h)", color=self.RED)
+        rpm_axis.set_ylabel("RPM / obrtaji motora", color=self.BLUE)
+        self._style(figure, speed_axis)
+        rpm_axis.tick_params(axis="y", colors=self.BLUE)
+        self._display(figure, f"brzina_obrtaji_{driver}.png")
+
+    def track_map(self, telemetry: Any, driver: str) -> None:
+        x = np.asarray(telemetry["X"].values)
+        y = np.asarray(telemetry["Y"].values)
+        speed = np.asarray(telemetry["Speed"].values)
+        points = np.array([x, y]).T.reshape(-1, 1, 2)
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
+
+        figure, axes = plt.subplots(figsize=(10, 8))
+        lines = LineCollection(
+            segments,
+            cmap="plasma",
+            norm=plt.Normalize(speed.min(), speed.max()),
+            linewidth=5,
+        )
+        lines.set_array(speed)
+        axes.add_collection(lines)
+        axes.set_xlim(x.min() - 500, x.max() + 500)
+        axes.set_ylim(y.min() - 500, y.max() + 500)
+        axes.set_title(f"Mapa staze po brzini — {driver}", fontweight="bold")
+        axes.axis("off")
+        self._style(figure, axes)
+        colorbar = figure.colorbar(lines, ax=axes)
+        colorbar.set_label("Brzina (km/h)", color=self.TEXT)
+        colorbar.ax.tick_params(colors=self.TEXT)
+        self._display(figure, f"mapa_staze_{driver}.png")
+
+    def compare_speed(
+        self,
+        telemetry_one: Any,
+        telemetry_two: Any,
+        driver_one: str,
+        driver_two: str,
+        faster_driver: str,
+    ) -> None:
+        figure, axes = plt.subplots(figsize=(12, 6))
+        axes.plot(
+            telemetry_one["Distance"], telemetry_one["Speed"],
+            color=self.RED, linewidth=2, label=driver_one
+        )
+        axes.plot(
+            telemetry_two["Distance"], telemetry_two["Speed"],
+            color=self.BLUE, linewidth=2, label=driver_two
+        )
+        axes.set_title(
+            f"Poređenje brzine — brži vozač: {faster_driver}",
+            fontweight="bold",
+        )
+        axes.set_xlabel("Distanca kroz krug (m)")
+        axes.set_ylabel("Brzina (km/h)")
+        axes.legend(facecolor=self.BACKGROUND, labelcolor=self.TEXT)
+        self._style(figure, axes)
+        self._display(figure, f"poredjenje_{driver_one}_{driver_two}.png")
 
 
-def prikaziNaslov():
-    print("----------------------------------------")
-    print("           F1 Telemetry Analyzer         ")
-    print("----------------------------------------")
-    print("Ovaj program koristi stvarne Formula 1 podatke.")
-    print("Možeš da izabereš sezonu, trku, sesiju i vozača.")
-    print("Program zatim prikazuje telemetriju njegovog najbržeg kruga.")
+class ConsoleUI:
+    """Prikaz i validacija korisničkog unosa."""
+
+    RED = "\033[91m"
+    GREEN = "\033[92m"
+    CYAN = "\033[96m"
+    YELLOW = "\033[93m"
+    RESET = "\033[0m"
+
+    def header(self) -> None:
+        print(f"\n{self.CYAN}{'═' * 64}{self.RESET}")
+        print(f"{self.CYAN}              F1 TELEMETRY ANALYZER{self.RESET}")
+        print(f"{self.CYAN}{'═' * 64}{self.RESET}")
+        print("Analiza najbržeg kruga na osnovu stvarnih Formula 1 podataka.\n")
+
+    def success(self, message: str) -> None:
+        print(f"{self.GREEN}✓ {message}{self.RESET}")
+
+    def error(self, message: str) -> None:
+        print(f"{self.RED}✗ {message}{self.RESET}")
+
+    def ask_yes_no(self, message: str) -> bool:
+        while True:
+            answer = input(f"{message} [da/ne]: ").strip().lower()
+            if answer in {"da", "d"}:
+                return True
+            if answer in {"ne", "n"}:
+                return False
+            self.error("Unesite 'da' ili 'ne'.")
+
+    def season(self, minimum: int) -> int:
+        while True:
+            try:
+                value = int(input(f"Sezona (preporučeno {minimum}+): "))
+                if value < minimum:
+                    print(f"{self.YELLOW}Napomena: starije sezone mogu imati manje podataka.{self.RESET}")
+                return value
+            except ValueError:
+                self.error("Sezona mora biti ceo broj, na primer 2024.")
+
+    def race(self, schedule: Any) -> int:
+        print("\n" + self._section("KALENDAR SEZONE"))
+        for _, event in schedule.iterrows():
+            if event["RoundNumber"] != 0:
+                print(f"{int(event['RoundNumber']):>2}. {event['EventName']} — {event['Location']}")
+        valid_rounds = set(schedule["RoundNumber"].tolist())
+        while True:
+            try:
+                value = int(input("\nBroj trke: "))
+                if value in valid_rounds and value != 0:
+                    return value
+                self.error("Trka sa tim brojem ne postoji u kalendaru.")
+            except ValueError:
+                self.error("Broj trke mora biti ceo broj.")
+
+    def session_type(self) -> str:
+        sessions = {
+            "R": "Trka", "Q": "Kvalifikacije", "FP1": "Prvi trening",
+            "FP2": "Drugi trening", "FP3": "Treći trening",
+            "S": "Sprint", "SQ": "Sprint kvalifikacije",
+        }
+        print("\n" + self._section("TIP SESIJE"))
+        print("  ".join(f"{key}: {value}" for key, value in sessions.items()))
+        while True:
+            value = input("\nTip sesije: ").strip().upper()
+            if value in sessions:
+                return value
+            self.error("Nepoznat tip sesije.")
+
+    def drivers(self, session: Any) -> None:
+        print("\n" + self._section("DOSTUPNI VOZAČI"))
+        if session.results is not None and not session.results.empty:
+            for _, driver in session.results.iterrows():
+                print(f"{driver['Abbreviation']:<5} {driver['FullName']} — {driver['TeamName']}")
+        else:
+            print(", ".join(sorted(session.laps["Driver"].dropna().unique())))
+
+    def driver(self, session: Any, prompt: str = "Vozač") -> str:
+        available = set(session.laps["Driver"].dropna().unique())
+        while True:
+            value = input(f"\n{prompt} (npr. VER, HAM, LEC): ").strip().upper()
+            if value in available:
+                return value
+            self.error("Vozač nije pronađen u izabranoj sesiji.")
+
+    def loading_error(self, error: Exception) -> None:
+        self.error("Podaci nisu mogli da se učitaju.")
+        print("Proverite internet, sezonu i dostupnost izabrane sesije.")
+        print(f"Detalji: {error}")
+
+    @staticmethod
+    def _section(title: str) -> str:
+        return f"── {title} " + "─" * max(0, 54 - len(title))
 
 
-def unesiSezonu():
-    while True:
+class TelemetryAnalyzer:
+    """Poslovna logika za izbor kruga, statistiku i poređenje vozača."""
+
+    def __init__(self, ui: ConsoleUI) -> None:
+        self.ui = ui
+
+    def fastest_lap(self, session: Any, driver: str) -> Optional[Any]:
+        laps = session.laps.pick_drivers(driver)
+        if laps.empty:
+            self.ui.error("Nema dostupnih krugova za ovog vozača.")
+            return None
+        lap = laps.pick_fastest()
+        if lap is None:
+            self.ui.error("Najbrži krug nije dostupan.")
+        return lap
+
+    def telemetry(self, lap: Any) -> Optional[Any]:
         try:
-            sezona = int(input("\nUnesi sezonu, na primer 2022, ali takođe možeš bilo koju od 2018 pa nadalje: "))
-            if sezona < 2018:
-                print("Preporuka je da koristiš sezonu od 2018. pa nadalje zbog boljih podataka.")
-            else:
-                return sezona
-        except ValueError:
-            print("Greška: moraš uneti broj, na primer 2024.")
+            telemetry = lap.get_telemetry()
+        except Exception as error:
+            self.ui.loading_error(error)
+            return None
+        if telemetry.empty:
+            self.ui.error("Telemetrija nije dostupna za ovaj krug.")
+            return None
+        return telemetry
+
+    def show_lap_details(self, lap: Any, driver: str) -> None:
+        print("\n" + self.ui._section("NAJBRŽI KRUG"))
+        print(f"Vozač       : {driver}")
+        print(f"Broj kruga  : {int(lap['LapNumber'])}")
+        print(f"Vreme       : {lap['LapTime']}")
+        print(f"Gume        : {lap['Compound']}")
+        position = lap["Position"]
+        if position is not None and not (isinstance(position, float) and np.isnan(position)):
+            print(f"Pozicija    : {int(position)}")
+
+    def show_statistics(self, telemetry: Any, driver: str) -> None:
+        print("\n" + self.ui._section("STATISTIKA TELEMETRIJE"))
+        print(f"Vozač                 : {driver}")
+        print(f"Maksimalna brzina     : {telemetry['Speed'].max():.2f} km/h")
+        print(f"Prosečna brzina       : {telemetry['Speed'].mean():.2f} km/h")
+        print(f"Maksimalni gas        : {telemetry['Throttle'].max():.2f}%")
+        print(f"Prosečni gas          : {telemetry['Throttle'].mean():.2f}%")
+        print(f"Tačke sa kočenjem     : {int((telemetry['Brake'] > 0).sum())}")
+
+    def compare(self, session: Any, first: str, second: str) -> Optional[tuple[Any, Any, Any, Any]]:
+        first_lap = self.fastest_lap(session, first)
+        second_lap = self.fastest_lap(session, second)
+        if first_lap is None or second_lap is None:
+            return None
+        first_telemetry = self.telemetry(first_lap)
+        second_telemetry = self.telemetry(second_lap)
+        if first_telemetry is None or second_telemetry is None:
+            return None
+        first_time = first_lap["LapTime"].total_seconds()
+        second_time = second_lap["LapTime"].total_seconds()
+        faster = first if first_time <= second_time else second
+        return first_telemetry, second_telemetry, faster, first_lap["LapTime"] - second_lap["LapTime"]
 
 
-def prikaziTrkeUSezoni(sezona):
-    try:
-        kalendar = fastf1.get_event_schedule(sezona)
-    except Exception as greska:
-        print("Došlo je do greške pri učitavanju kalendara.")
-        print(greska)
-        return None
-    print(f"\n--- Trke u sezoni {sezona} ---")
-    for _, trka in kalendar.iterrows():
-        brojRunde = trka["RoundNumber"]
-        nazivTrke = trka["EventName"]
-        lokacija = trka["Location"]
-        if brojRunde != 0:
-            print(f"{brojRunde}. {nazivTrke} - {lokacija}")
-    return kalendar
+class F1TelemetryApplication:
+    """Koordinator aplikacije; klase iznad ne zavise jedna od druge nasumično."""
 
+    def __init__(self, config: Optional[AppConfig] = None) -> None:
+        self.config = config or AppConfig()
+        self.ui = ConsoleUI()
+        self.data = F1DataService(self.config)
+        self.analyzer = TelemetryAnalyzer(self.ui)
+        self.charts = ChartRenderer(self.config, self.ui)
 
-def izaberiTrku(kalendar):
-    while True:
+    def run(self) -> None:
+        self.data.enable_cache()
+        self.ui.header()
+        season = self.ui.season(self.config.minimum_season)
         try:
-            brojTrke = int(input("\nUnesi broj trke koju želiš da analiziraš: "))
-            izabranaTrka = kalendar[kalendar["RoundNumber"] == brojTrke]
-            if izabranaTrka.empty:
-                print("Ne postoji trka sa tim brojem. Pokušaj ponovo.")
-            else:
-                return brojTrke
-        except ValueError:
-            print("Greška: moraš uneti broj trke.")
+            schedule = self.data.get_schedule(season)
+            round_number = self.ui.race(schedule)
+            session_type = self.ui.session_type()
+            print("\nUčitavanje podataka... Prvi put može potrajati nekoliko minuta.")
+            session = self.data.get_session(season, round_number, session_type)
+        except Exception as error:
+            self.ui.loading_error(error)
+            return
 
+        self.ui.success("Podaci su uspešno učitani.")
+        self.ui.drivers(session)
+        self._analyze_driver(session)
 
-def izaberiTipSesije():
-    dostupneSesije = ["R", "Q", "FP1", "FP2", "FP3", "S", "SQ"]
-    print("\n--- Izbor sesije ---")
-    print("R   - Race / Trka")
-    print("Q   - Qualifying / Kvalifikacije")
-    print("FP1 - Prvi trening")
-    print("FP2 - Drugi trening")
-    print("FP3 - Treći trening")
-    print("S   - Sprint")
-    print("SQ  - Sprint Shootout / Sprint kvalifikacije")
-    while True:
-        sesija = input("Unesi tip sesije: ").upper()
-        if sesija in dostupneSesije:
-            return sesija
-        print("Nepoznata sesija. Pokušaj ponovo.")
+    def _analyze_driver(self, session: Any) -> None:
+        while True:
+            driver = self.ui.driver(session)
+            lap = self.analyzer.fastest_lap(session, driver)
+            if lap is None:
+                if not self.ui.ask_yes_no("Pokušati sa drugim vozačem?"):
+                    return
+                continue
+            telemetry = self.analyzer.telemetry(lap)
+            if telemetry is None:
+                if not self.ui.ask_yes_no("Pokušati sa drugim vozačem?"):
+                    return
+                continue
 
+            self.analyzer.show_lap_details(lap, driver)
+            self.analyzer.show_statistics(telemetry, driver)
+            self.charts.speed(telemetry, driver)
+            self.charts.throttle_and_brake(telemetry, driver)
+            self.charts.speed_and_rpm(telemetry, driver)
+            self.charts.track_map(telemetry, driver)
 
-def ucitajSesiju(sezona, brojTrke, tipSesije):
-    print("\nUčitavam podatke...")
-    print("Ako prvi put učitavaš ovu trku, može da potraje malo duže.")
-    try:
-        sesija = fastf1.get_session(sezona, brojTrke, tipSesije)
-        sesija.load()
-    except Exception as greska:
-        print("Došlo je do greške pri učitavanju sesije.")
-        print("Mogući razlozi:")
-        print("- nema interneta")
-        print("- podaci za tu sesiju nisu dostupni")
-        print("- izabrana trka nema taj tip sesije")
-        print(greska)
-        return None
-    print("Podaci su uspešno učitani.")
-    return sesija
-
-
-def prikaziVozace(sesija):
-    print("\n--- Vozači dostupni u ovoj sesiji ---")
-    if sesija.results is not None and not sesija.results.empty:
-        for _, vozac in sesija.results.iterrows():
-            skracenica = vozac["Abbreviation"]
-            punoIme = vozac["FullName"]
-            tim = vozac["TeamName"]
-            print(f"{skracenica} - {punoIme} | {tim}")
-    else:
-        vozaci = sorted(sesija.laps["Driver"].dropna().unique())
-        for vozac in vozaci:
-            print(vozac)
-
-
-def izaberiVozaca(sesija):
-    dostupniVozaci = sorted(sesija.laps["Driver"].dropna().unique())
-    while True:
-        vozac = input("\nUnesi skraćenicu vozača, na primer VER, HAM, LEC, NOR: ").upper()
-        if vozac in dostupniVozaci:
-            return vozac
-        print("Vozač nije pronađen u ovoj sesiji. Pokušaj ponovo.")
-
-
-def pronadjiNajbrziKrug(sesija, vozac):
-    """Pronalazi najbrži krug izabranog vozača u datoj sesiji. Vraća None ako podaci nisu dostupni."""
-    krugoviVozaca = sesija.laps.pick_drivers(vozac)
-    if krugoviVozaca.empty:
-        print("Nema dostupnih krugova za ovog vozača.")
-        return None
-    najbrziKrug = krugoviVozaca.pick_fastest()
-    if najbrziKrug is None:
-        print("Nije moguće pronaći najbrži krug za ovog vozača.")
-        return None
-    return najbrziKrug
-
-
-def prikaziOsnovnePodatkeOKrugu(najbrziKrug, vozac):
-    vremeKruga = najbrziKrug["LapTime"]
-    brojKruga = najbrziKrug["LapNumber"]
-    tipGuma = najbrziKrug["Compound"]
-    pozicija = najbrziKrug["Position"]
-    print("\n--- Podaci o najbržem krugu ---")
-    print(f"Vozač: {vozac}")
-    print(f"Broj kruga: {int(brojKruga)}")
-    print(f"Vreme kruga: {vremeKruga}")
-    print(f"Gume: {tipGuma}")
-    if not np.isnan(pozicija):
-        print(f"Pozicija na stazi u tom trenutku: {int(pozicija)}")
-
-
-def nacrtajBrzinu(telemetrija, vozac):
-    plt.figure(figsize=(12, 6))
-    plt.plot(
-        telemetrija["Distance"],
-        telemetrija["Speed"],
-        color="red",
-        linewidth=2
-    )
-    plt.title(f"Brzina kroz najbrži krug - {vozac}")
-    plt.xlabel("Distanca kroz krug u metrima")
-    plt.ylabel("Brzina u km/h")
-    plt.grid(True)
-    sacuvajIliPrikazi(f"brzina_{vozac}.png")
-
-
-def nacrtajGasIKocenje(telemetrija, vozac):
-    plt.figure(figsize=(12, 6))
-    plt.plot(
-        telemetrija["Distance"],
-        telemetrija["Throttle"],
-        label="Gas",
-        color="green",
-        linewidth=2
-    )
-    plt.plot(
-        telemetrija["Distance"],
-        telemetrija["Brake"] * 100,
-        label="Kočenje",
-        color="red",
-        linewidth=2
-    )
-    plt.title(f"Gas i kočenje kroz najbrži krug - {vozac}")
-    plt.xlabel("Distanca kroz krug u metrima")
-    plt.ylabel("Procenat")
-    plt.legend()
-    plt.grid(True)
-    sacuvajIliPrikazi(f"gas_kocenje_{vozac}.png")
-
-
-def nacrtajBrzinuIObrtaje(telemetrija, vozac):
-    figura, prvaOsa = plt.subplots(figsize=(12, 6))
-    prvaOsa.plot(
-        telemetrija["Distance"],
-        telemetrija["Speed"],
-        color="red",
-        label="Brzina"
-    )
-    prvaOsa.set_xlabel("Distanca kroz krug u metrima")
-    prvaOsa.set_ylabel("Brzina u km/h", color="red")
-    prvaOsa.tick_params(axis="y", labelcolor="red")
-    prvaOsa.grid(True)
-    drugaOsa = prvaOsa.twinx()
-    drugaOsa.plot(
-        telemetrija["Distance"],
-        telemetrija["RPM"],
-        color="blue",
-        label="Obrtaji"
-    )
-    drugaOsa.set_ylabel("RPM / obrtaji motora", color="blue")
-    drugaOsa.tick_params(axis="y", labelcolor="blue")
-    plt.title(f"Brzina i obrtaji kroz najbrži krug - {vozac}")
-    figura.tight_layout()
-    sacuvajIliPrikazi(f"brzina_obrtaji_{vozac}.png")
-
-
-def nacrtajMapuStazePoBrzini(telemetrija, vozac):
-    x = np.array(telemetrija["X"].values)
-    y = np.array(telemetrija["Y"].values)
-    brzina = np.array(telemetrija["Speed"].values)
-    tacke = np.array([x, y]).T.reshape(-1, 1, 2)
-    segmenti = np.concatenate([tacke[:-1], tacke[1:]], axis=1)
-    figura, osa = plt.subplots(figsize=(10, 8))
-    normala = plt.Normalize(brzina.min(), brzina.max())
-    linije = LineCollection(segmenti, cmap="plasma", norm=normala)
-    linije.set_array(brzina)
-    linije.set_linewidth(5)
-    osa.add_collection(linije)
-    osa.set_xlim(x.min() - 500, x.max() + 500)
-    osa.set_ylim(y.min() - 500, y.max() + 500)
-    osa.set_title(f"Mapa staze po brzini - {vozac}")
-    osa.axis("off")
-    colorbar = figura.colorbar(linije, ax=osa)
-    colorbar.set_label("Brzina u km/h")
-    sacuvajIliPrikazi(f"mapa_staze_{vozac}.png")
-
-
-def prikaziStatistikuTelemetrije(telemetrija, vozac):
-    maksimalnaBrzina = telemetrija["Speed"].max()
-    prosecnaBrzina = telemetrija["Speed"].mean()
-    maksimalniGas = telemetrija["Throttle"].max()
-    prosecniGas = telemetrija["Throttle"].mean()
-    brojKocenja = telemetrija["Brake"].sum()
-    print("\n--- Kratka statistika telemetrije ---")
-    print(f"Vozač: {vozac}")
-    print(f"Maksimalna brzina: {maksimalnaBrzina:.2f} km/h")
-    print(f"Prosečna brzina: {prosecnaBrzina:.2f} km/h")
-    print(f"Maksimalni gas: {maksimalniGas:.2f}%")
-    print(f"Prosečni gas: {prosecniGas:.2f}%")
-    print(f"Broj tačaka gde je vozač kočio: {brojKocenja}")
-
-
-def analizirajVozaca(sesija, vozac):
-    """Puna analiza jednog vozača: statistika, brzina, gas/kočenje, obrtaji i mapa staze. Vraća True ako je uspešno."""
-    najbrziKrug = pronadjiNajbrziKrug(sesija, vozac)
-    if najbrziKrug is None:
-        return False
-    prikaziOsnovnePodatkeOKrugu(najbrziKrug, vozac)
-    try:
-        telemetrija = najbrziKrug.get_telemetry()
-    except Exception as greska:
-        print("Telemetrija nije mogla da se učita za ovog vozača.")
-        print("Možeš probati drugog vozača iz iste sesije.")
-        print(greska)
-        return False
-    if telemetrija.empty:
-        print("Telemetrija nije dostupna za ovaj krug.")
-        print("Možeš probati drugog vozača iz iste sesije.")
-        return False
-    prikaziStatistikuTelemetrije(telemetrija, vozac)
-    nacrtajBrzinu(telemetrija, vozac)
-    nacrtajGasIKocenje(telemetrija, vozac)
-    nacrtajBrzinuIObrtaje(telemetrija, vozac)
-    nacrtajMapuStazePoBrzini(telemetrija, vozac)
-    return True
-
-
-def izaberiDrugogVozacaZaPoredjenje(sesija, prviVozac):
-    dostupniVozaci = sorted(sesija.laps["Driver"].dropna().unique())
-    while True:
-        vozac = input(f"\nUnesi skraćenicu DRUGOG vozača za poređenje sa {prviVozac}: ").upper()
-        if vozac == prviVozac:
-            print("Izaberi drugačijeg vozača od prvog.")
-        elif vozac in dostupniVozaci:
-            return vozac
-        else:
-            print("Vozač nije pronađen u ovoj sesiji. Pokušaj ponovo.")
-
-
-def uporediBrzinuDvaVozaca(sesija, vozac1, vozac2):
-    """Crta overlay grafikon brzine dva vozača na njihovim najbržim krugovima u sesiji."""
-    krug1 = sesija.laps.pick_drivers(vozac1).pick_fastest()
-    krug2 = sesija.laps.pick_drivers(vozac2).pick_fastest()
-    if krug1 is None or krug2 is None:
-        print("Nije moguće uporediti vozače - nedostaju podaci za jednog od njih.")
-        return
-    telemetrija1 = krug1.get_telemetry()
-    telemetrija2 = krug2.get_telemetry()
-    plt.figure(figsize=(12, 6))
-    plt.plot(telemetrija1["Distance"], telemetrija1["Speed"], color="red", linewidth=2, label=vozac1)
-    plt.plot(telemetrija2["Distance"], telemetrija2["Speed"], color="blue", linewidth=2, label=vozac2)
-    razlikaVremena = (krug2["LapTime"] - krug1["LapTime"]).total_seconds()
-    brziVozac = vozac1 if razlikaVremena > 0 else vozac2
-    plt.title(f"Poređenje brzine: {vozac1} vs {vozac2} (brži: {brziVozac})")
-    plt.xlabel("Distanca kroz krug u metrima")
-    plt.ylabel("Brzina u km/h")
-    plt.legend()
-    plt.grid(True)
-    plt.show()
-
-
-def korisnikZeliPoredjenje():
-    while True:
-        izbor = input("\nDa li želiš da uporediš ovog vozača sa drugim? da/ne: ").lower()
-        if izbor == "da":
-            return True
-        elif izbor == "ne":
-            return False
-        else:
-            print("Unesi 'da' ili 'ne'.")
-
-
-def korisnikZeliDrugogVozaca():
-    while True:
-        izbor = input("\nDa li želiš da probaš drugog vozača iz iste sesije? da/ne: ").lower()
-        if izbor == "da":
-            return True
-        elif izbor == "ne":
-            return False
-        else:
-            print("Unesi 'da' ili 'ne'.")
-
-
-def main():
-    ukljuciCache()
-    prikaziNaslov()
-    sezona = unesiSezonu()
-    kalendar = prikaziTrkeUSezoni(sezona)
-    if kalendar is None:
-        return
-    brojTrke = izaberiTrku(kalendar)
-    tipSesije = izaberiTipSesije()
-    sesija = ucitajSesiju(sezona, brojTrke, tipSesije)
-    if sesija is None:
-        return
-    prikaziVozace(sesija)
-    while True:
-        vozac = izaberiVozaca(sesija)
-        analizaUspesna = analizirajVozaca(sesija, vozac)
-        if analizaUspesna:
-            if korisnikZeliPoredjenje():
-                drugiVozac = izaberiDrugogVozacaZaPoredjenje(sesija, vozac)
-                uporediBrzinuDvaVozaca(sesija, vozac, drugiVozac)
-            break
-        if not korisnikZeliDrugogVozaca():
-            print("Analiza je prekinuta.")
-            break
+            if self.ui.ask_yes_no("Uporediti ovog vozača sa drugim?"):
+                other = self.ui.driver(session, f"Drugi vozač za poređenje sa {driver}")
+                comparison = self.analyzer.compare(session, driver, other)
+                if comparison is not None:
+                    first_telemetry, second_telemetry, faster, time_difference = comparison
+                    self.ui.success(f"Brži vozač je {faster}. Razlika: {abs(time_difference.total_seconds()):.3f}s")
+                    self.charts.compare_speed(
+                        first_telemetry, second_telemetry, driver, other, faster
+                    )
+            return
 
 
 if __name__ == "__main__":
-    main()
+    F1TelemetryApplication().run()
