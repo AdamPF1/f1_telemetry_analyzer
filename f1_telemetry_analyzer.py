@@ -12,16 +12,12 @@ from matplotlib.collections import LineCollection
 
 @dataclass(frozen=True)
 class AppConfig:
-    """Putanje i podrazumevane vrednosti aplikacije."""
-
     cache_folder: str = "cache"
     output_folder: str = "grafikoni"
     minimum_season: int = 2018
 
 
 class F1DataService:
-    """Jedino mesto koje komunicira sa FastF1 bibliotekom."""
-
     def __init__(self, config: AppConfig) -> None:
         self.config = config
 
@@ -39,8 +35,6 @@ class F1DataService:
 
 
 class ChartRenderer:
-    """Kreira, stilizuje i čuva grafikone telemetrije."""
-
     BACKGROUND = "#111827"
     GRID = "#374151"
     TEXT = "#F9FAFB"
@@ -174,8 +168,6 @@ class ChartRenderer:
 
 
 class ConsoleUI:
-    """Prikaz i validacija korisničkog unosa."""
-
     RED = "\033[91m"
     GREEN = "\033[92m"
     CYAN = "\033[96m"
@@ -269,8 +261,6 @@ class ConsoleUI:
 
 
 class TelemetryAnalyzer:
-    """Poslovna logika za izbor kruga, statistiku i poređenje vozača."""
-
     def __init__(self, ui: ConsoleUI) -> None:
         self.ui = ui
 
@@ -330,8 +320,6 @@ class TelemetryAnalyzer:
 
 
 class F1TelemetryApplication:
-    """Koordinator aplikacije; klase iznad ne zavise jedna od druge nasumično."""
-
     def __init__(self, config: Optional[AppConfig] = None) -> None:
         self.config = config or AppConfig()
         self.ui = ConsoleUI()
