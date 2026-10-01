@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from f1_telemetry_analyzer import main
+from .app import main
 
 if __name__ == "__main__":
     main()

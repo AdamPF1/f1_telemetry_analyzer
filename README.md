@@ -27,6 +27,25 @@ Grafikoni se prikazuju nakon analize, a za svaki grafikon korisnik može izabrat
 - Matplotlib
 - Pandas
 - NumPy
+- pytest
+- Ruff
+
+## Struktura projekta
+
+```text
+f1_telemetry_analyzer/
+├── analysis.py
+├── app.py
+├── charts.py
+├── config.py
+├── data.py
+└── ui.py
+tests/
+├── test_analysis.py
+└── test_config.py
+```
+
+Glavna logika je podeljena po odgovornostima: učitavanje podataka, analiza, prikaz u terminalu i generisanje grafikona. Fajl `f1_telemetry_analyzer.py` ostaje kompatibilna ulazna tačka za pokretanje aplikacije.
 
 ## Instalacija
 
@@ -36,11 +55,34 @@ Projekat zahteva Python i biblioteke navedene u fajlu `requirements.txt`.
 pip install -r requirements.txt
 ```
 
+Za razvoj i pokretanje testova:
+
+```bash
+pip install -e ".[dev]"
+```
+
 ## Pokretanje
 
 ```bash
 python f1_telemetry_analyzer.py
 ```
+
+Alternativno, paket se može pokrenuti kao modul:
+
+```bash
+python -m f1_telemetry_analyzer
+```
+
+## Provere kvaliteta
+
+Testovi i lintovanje mogu se pokrenuti komandama:
+
+```bash
+python -m pytest
+ruff check .
+```
+
+Iste provere se automatski pokreću kroz GitHub Actions nakon svakog push-a ili pull requesta.
 
 ## Primer korišćenja
 
