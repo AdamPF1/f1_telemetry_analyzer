@@ -23,10 +23,8 @@ def analyze_driver(session: Any, ui: UI, analyzer: Analyzer, charts: Charts) -> 
 
         analyzer.show_lap(lap, driver)
         analyzer.show_statistics(telemetry, driver)
-        charts.speed(telemetry, driver)
-        charts.throttle_and_brake(telemetry, driver)
-        charts.speed_and_rpm(telemetry, driver)
-        charts.track_map(telemetry, driver)
+        chart_name = ui.chart()
+        getattr(charts, chart_name)(telemetry, driver)
         if not ui.ask_yes_no("Uporediti ovog vozača sa drugim?"):
             return
 

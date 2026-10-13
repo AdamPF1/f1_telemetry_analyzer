@@ -18,5 +18,5 @@ class F1Data:
 
     def session(self, season: int, race: int, session_type: str) -> Any:
         session = fastf1.get_session(season, race, session_type)
-        session.load()
+        session.load(weather=False, messages=False)
         return session

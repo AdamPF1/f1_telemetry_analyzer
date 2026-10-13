@@ -41,7 +41,12 @@ class Charts:
         plt.show()
         plt.close(figure)
 
+    @staticmethod
+    def _plot_data(telemetry: Any) -> Any:
+        return telemetry.iloc[::3]
+
     def speed(self, telemetry: Any, driver: str) -> None:
+        telemetry = self._plot_data(telemetry)
         figure, axes = plt.subplots(figsize=(12, 6))
         axes.plot(telemetry["Distance"], telemetry["Speed"], color=self.RED, linewidth=2)
         axes.set_title(f"Brzina kroz najbrži krug — {driver}", fontweight="bold")
@@ -51,6 +56,7 @@ class Charts:
         self._finish(figure, f"brzina_{driver}.png")
 
     def throttle_and_brake(self, telemetry: Any, driver: str) -> None:
+        telemetry = self._plot_data(telemetry)
         figure, axes = plt.subplots(figsize=(12, 6))
         distance = telemetry["Distance"]
         axes.plot(distance, telemetry["Throttle"], label="Gas", color=self.GREEN, linewidth=2)
@@ -63,6 +69,7 @@ class Charts:
         self._finish(figure, f"gas_kocenje_{driver}.png")
 
     def speed_and_rpm(self, telemetry: Any, driver: str) -> None:
+        telemetry = self._plot_data(telemetry)
         figure, speed_axis = plt.subplots(figsize=(12, 6))
         rpm_axis = speed_axis.twinx()
         distance = telemetry["Distance"]
@@ -77,6 +84,7 @@ class Charts:
         self._finish(figure, f"brzina_obrtaji_{driver}.png")
 
     def track_map(self, telemetry: Any, driver: str) -> None:
+        telemetry = self._plot_data(telemetry)
         x = np.asarray(telemetry["X"])
         y = np.asarray(telemetry["Y"])
         speed = np.asarray(telemetry["Speed"])
@@ -106,6 +114,8 @@ class Charts:
         second_driver: str,
         faster_driver: str,
     ) -> None:
+        first_telemetry = self._plot_data(first_telemetry)
+        second_telemetry = self._plot_data(second_telemetry)
         figure, axes = plt.subplots(figsize=(12, 6))
         axes.plot(
             first_telemetry["Distance"],

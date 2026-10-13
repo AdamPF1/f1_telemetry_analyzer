@@ -109,6 +109,23 @@ class UI:
                 return driver
             self.error("Vozač nije pronađen u izabranoj sesiji.")
 
+    def chart(self) -> str:
+        options = {
+            "1": "speed",
+            "2": "throttle_and_brake",
+            "3": "speed_and_rpm",
+            "4": "track_map",
+        }
+        print("\n1. Brzina")
+        print("2. Gas i kočenje")
+        print("3. Brzina i obrtaji")
+        print("4. Mapa staze")
+        while True:
+            choice = input("Izaberite grafikon [1-4]: ").strip()
+            if choice in options:
+                return options[choice]
+            self.error("Izaberite broj od 1 do 4.")
+
     def loading_error(self, error: Exception) -> None:
         self.error("Podaci nisu mogli da se učitaju.")
         print("Proverite internet, sezonu i dostupnost izabrane sesije.")
