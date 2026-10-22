@@ -18,6 +18,12 @@ class UI:
         "S": "Sprint",
         "SQ": "Sprint kvalifikacije",
     }
+    CHARTS: ClassVar[dict[str, tuple[str, str]]] = {
+        "1": ("speed", "Brzina"),
+        "2": ("throttle_and_brake", "Gas i kočenje"),
+        "3": ("speed_and_rpm", "Brzina i obrtaji"),
+        "4": ("track_map", "Mapa staze"),
+    }
 
     def header(self) -> None:
         cyan = self.COLORS["cyan"]
@@ -101,29 +107,25 @@ class UI:
         drivers = sorted(session.laps["Driver"].dropna().unique())
         print(", ".join(drivers))
 
-    def driver(self, session: Any, prompt: str = "Vozač") -> str:
+    def driver(self, session: Any, prompt: str = "Vozač", exclude: str | None = None) -> str:
         available = set(session.laps["Driver"].dropna().unique())
         while True:
             driver = input(f"\n{prompt} (npr. VER, HAM, LEC): ").strip().upper()
-            if driver in available:
+            if driver == exclude:
+                self.error("Izaberite drugog vozača.")
+            elif driver in available:
                 return driver
-            self.error("Vozač nije pronađen u izabranoj sesiji.")
+            else:
+                self.error("Vozač nije pronađen u izabranoj sesiji.")
 
     def chart(self) -> str:
-        options = {
-            "1": "speed",
-            "2": "throttle_and_brake",
-            "3": "speed_and_rpm",
-            "4": "track_map",
-        }
-        print("\n1. Brzina")
-        print("2. Gas i kočenje")
-        print("3. Brzina i obrtaji")
-        print("4. Mapa staze")
+        print()
+        for number, (_, name) in self.CHARTS.items():
+            print(f"{number}. {name}")
         while True:
             choice = input("Izaberite grafikon [1-4]: ").strip()
-            if choice in options:
-                return options[choice]
+            if choice in self.CHARTS:
+                return self.CHARTS[choice][0]
             self.error("Izaberite broj od 1 do 4.")
 
     def loading_error(self, error: Exception) -> None:
