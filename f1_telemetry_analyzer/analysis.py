@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 import fastf1
-import numpy as np
+import pandas as pd
 
 from .ui import UI
 
@@ -39,15 +39,29 @@ class Analyzer:
             return None
         return telemetry
 
+    def lap_data(self, session: Any, driver: str) -> tuple[Any, Any] | None:
+        lap = self.fastest_lap(session, driver)
+        if lap is None:
+            return None
+        telemetry = self.telemetry(lap)
+        if telemetry is None:
+            return None
+        return lap, telemetry
+
+    @staticmethod
+    def lap_time(time: Any) -> str:
+        minutes, seconds = divmod(time.total_seconds(), 60)
+        return f"{int(minutes)}:{seconds:06.3f}"
+
     def show_lap(self, lap: Any, driver: str) -> None:
         print(f"\n{self.ui.section('NAJBRŽI KRUG')}")
         print(f"Vozač       : {driver}")
         print(f"Broj kruga  : {int(lap['LapNumber'])}")
-        print(f"Vreme       : {lap['LapTime']}")
-        print(f"Gume        : {lap['Compound']}")
-        position = lap["Position"]
-        if position is not None and not (isinstance(position, float) and np.isnan(position)):
-            print(f"Pozicija    : {int(position)}")
+        print(f"Vreme       : {self.lap_time(lap['LapTime'])}")
+        if pd.notna(lap["Compound"]):
+            print(f"Gume        : {lap['Compound']}")
+        if pd.notna(lap["Position"]):
+            print(f"Pozicija    : {int(lap['Position'])}")
 
     def show_statistics(self, telemetry: Any, driver: str) -> None:
         print(f"\n{self.ui.section('STATISTIKA TELEMETRIJE')}")
@@ -58,19 +72,10 @@ class Analyzer:
         print(f"Prosečni gas          : {telemetry['Throttle'].mean():.2f}%")
         print(f"Tačke sa kočenjem     : {(telemetry['Brake'] > 0).sum()}")
 
-    def compare(
-        self, session: Any, first_driver: str, second_driver: str
-    ) -> tuple[Any, Any, str, Any] | None:
-        first_lap = self.fastest_lap(session, first_driver)
-        second_lap = self.fastest_lap(session, second_driver)
-        if first_lap is None or second_lap is None:
-            return None
-        first_telemetry = self.telemetry(first_lap)
-        second_telemetry = self.telemetry(second_lap)
-        if first_telemetry is None or second_telemetry is None:
-            return None
-        first_time = first_lap["LapTime"].total_seconds()
-        second_time = second_lap["LapTime"].total_seconds()
-        faster = first_driver if first_time <= second_time else second_driver
-        difference = first_lap["LapTime"] - second_lap["LapTime"]
-        return first_telemetry, second_telemetry, faster, difference
+    @staticmethod
+    def faster_driver(
+        first_lap: Any, second_lap: Any, first_driver: str, second_driver: str
+    ) -> tuple[str, float]:
+        difference = (first_lap["LapTime"] - second_lap["LapTime"]).total_seconds()
+        faster = first_driver if difference <= 0 else second_driver
+        return faster, abs(difference)

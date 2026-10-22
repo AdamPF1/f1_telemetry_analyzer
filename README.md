@@ -18,7 +18,7 @@ F1 Telemetry Analyzer je Python aplikacija koja koristi FastF1 biblioteku za ana
 - opciono poređenje brzine dva vozača
 - opciono čuvanje grafikona u PNG formatu
 
-Grafikoni se prikazuju nakon analize, a za svaki grafikon korisnik može izabrati da li želi da ga sačuva u folder `grafikoni`.
+Nakon analize korisnik bira grafikon, a posle svakog može da prikaže sledeći bez ponovnog učitavanja podataka. Za svaki grafikon može da izabere da li želi da ga sačuva u folder `grafikoni`.
 
 ## Korišćene tehnologije
 
@@ -95,15 +95,15 @@ Tip sesije: R
 Vozač: VER
 ```
 
-Program zatim pronalazi najbrži krug izabranog vozača, prikazuje njegove osnovne podatke i statistiku, a zatim generiše grafikone telemetrije.
+Program zatim pronalazi najbrži krug izabranog vozača, prikazuje njegove osnovne podatke (vreme kruga u formatu `1:29.708`) i statistiku, a zatim generiše grafikone telemetrije. Pri poređenju, drugi vozač mora biti različit od prvog, a za prvog vozača se koriste već učitani podaci.
 
 ## Napomena
 
 Prvo učitavanje podataka može potrajati jer FastF1 preuzima podatke sa interneta.
 
-Podaci se čuvaju u `cache` folderu. Taj folder može biti veliki i automatski se kreira pri pokretanju programa.
+Podaci se čuvaju u `cache` folderu unutar projekta, bez obzira iz kog foldera se program pokreće. Taj folder može biti veliki i automatski se kreira pri pokretanju programa.
 
-Ako korisnik izabere čuvanje grafikona, PNG fajlovi se čuvaju u folderu `grafikoni`.
+Ako korisnik izabere čuvanje grafikona, PNG fajlovi se čuvaju u folderu `grafikoni` unutar projekta.
 
 ## Planirano dalje
 

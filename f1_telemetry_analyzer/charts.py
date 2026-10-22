@@ -114,23 +114,13 @@ class Charts:
         second_driver: str,
         faster_driver: str,
     ) -> None:
-        first_telemetry = self._plot_data(first_telemetry)
-        second_telemetry = self._plot_data(second_telemetry)
         figure, axes = plt.subplots(figsize=(12, 6))
-        axes.plot(
-            first_telemetry["Distance"],
-            first_telemetry["Speed"],
-            color=self.RED,
-            linewidth=2,
-            label=first_driver,
-        )
-        axes.plot(
-            second_telemetry["Distance"],
-            second_telemetry["Speed"],
-            color=self.BLUE,
-            linewidth=2,
-            label=second_driver,
-        )
+        for telemetry, driver, color in (
+            (first_telemetry, first_driver, self.RED),
+            (second_telemetry, second_driver, self.BLUE),
+        ):
+            data = self._plot_data(telemetry)
+            axes.plot(data["Distance"], data["Speed"], color=color, linewidth=2, label=driver)
         axes.set_title(f"Poređenje brzine — brži vozač: {faster_driver}", fontweight="bold")
         axes.set_xlabel("Distanca kroz krug (m)")
         axes.set_ylabel("Brzina (km/h)")
