@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, ClassVar
 
 import fastf1
 import pandas as pd
@@ -9,6 +9,12 @@ from .ui import UI
 
 
 class Analyzer:
+    SECTORS: ClassVar[dict[str, str]] = {
+        "S1": "Sector1Time",
+        "S2": "Sector2Time",
+        "S3": "Sector3Time",
+    }
+
     def __init__(self, ui: UI) -> None:
         self.ui = ui
 
@@ -79,3 +85,24 @@ class Analyzer:
         difference = (first_lap["LapTime"] - second_lap["LapTime"]).total_seconds()
         faster = first_driver if difference <= 0 else second_driver
         return faster, abs(difference)
+
+    @classmethod
+    def sector_differences(cls, first_lap: Any, second_lap: Any) -> dict[str, float]:
+        differences = {}
+        for sector, column in cls.SECTORS.items():
+            if pd.isna(first_lap[column]) or pd.isna(second_lap[column]):
+                continue
+            differences[sector] = (first_lap[column] - second_lap[column]).total_seconds()
+        return differences
+
+    def show_sector_differences(
+        self, first_lap: Any, second_lap: Any, first_driver: str, second_driver: str
+    ) -> None:
+        print(f"\n{self.ui.section('RAZLIKE PO SEKTORIMA')}")
+        differences = self.sector_differences(first_lap, second_lap)
+        if not differences:
+            self.ui.error("Vremena po sektorima nisu dostupna.")
+            return
+        for sector, difference in differences.items():
+            faster = first_driver if difference <= 0 else second_driver
+            print(f"{sector}  : {faster} brži za {abs(difference):.3f}s")

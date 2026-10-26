@@ -42,6 +42,7 @@ def analyze_driver(session: Any, ui: UI, analyzer: Analyzer, charts: Charts) -> 
     other_lap, other_telemetry = other_data
     faster, difference = analyzer.faster_driver(lap, other_lap, driver, other_driver)
     ui.success(f"Brži vozač je {faster}. Razlika: {difference:.3f}s")
+    analyzer.show_sector_differences(lap, other_lap, driver, other_driver)
     charts.compare_speed(telemetry, other_telemetry, driver, other_driver, faster)
 
 

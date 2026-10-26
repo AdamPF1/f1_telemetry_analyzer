@@ -2,6 +2,7 @@ from datetime import timedelta
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from f1_telemetry_analyzer.analysis import Analyzer
 
@@ -49,6 +50,46 @@ def lap(seconds, compound="SOFT", position=1.0):
     return FakeLap(
         LapNumber=10, LapTime=timedelta(seconds=seconds), Compound=compound, Position=position
     )
+
+
+def sector_lap(first, second, third):
+    return FakeLap(
+        Sector1Time=pd.Timedelta(seconds=first),
+        Sector2Time=pd.Timedelta(seconds=second),
+        Sector3Time=pd.Timedelta(seconds=third),
+    )
+
+
+def test_sector_differences_subtracts_second_lap_from_first():
+    differences = Analyzer.sector_differences(sector_lap(30, 40, 20), sector_lap(30.5, 39.8, 20))
+
+    assert differences == {"S1": -0.5, "S2": pytest.approx(0.2), "S3": 0}
+
+
+def test_sector_differences_skips_missing_sector_times():
+    first = sector_lap(30, 40, 20)
+    first["Sector2Time"] = pd.NaT
+
+    assert set(Analyzer.sector_differences(first, sector_lap(30, 40, 20))) == {"S1", "S3"}
+
+
+def test_show_sector_differences_prints_faster_driver_per_sector(capsys):
+    Analyzer(FakeUI()).show_sector_differences(
+        sector_lap(30, 40, 20), sector_lap(30.5, 39.8, 20), "VER", "HAM"
+    )
+
+    output = capsys.readouterr().out
+    assert "S1  : VER brži za 0.500s" in output
+    assert "S2  : HAM brži za 0.200s" in output
+
+
+def test_show_sector_differences_reports_missing_data():
+    ui = FakeUI()
+    empty = FakeLap(Sector1Time=pd.NaT, Sector2Time=pd.NaT, Sector3Time=pd.NaT)
+
+    Analyzer(ui).show_sector_differences(empty, empty, "VER", "HAM")
+
+    assert ui.errors == ["Vremena po sektorima nisu dostupna."]
 
 
 def test_faster_driver_returns_driver_and_positive_difference():
