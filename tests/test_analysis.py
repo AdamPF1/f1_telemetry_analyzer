@@ -54,9 +54,9 @@ def lap(seconds, compound="SOFT", position=1.0):
 
 def sector_lap(first, second, third):
     return FakeLap(
-        Sector1Time=pd.Timedelta(seconds=first),
-        Sector2Time=pd.Timedelta(seconds=second),
-        Sector3Time=pd.Timedelta(seconds=third),
+        Sector1Time=timedelta(seconds=first),
+        Sector2Time=timedelta(seconds=second),
+        Sector3Time=timedelta(seconds=third),
     )
 
 
